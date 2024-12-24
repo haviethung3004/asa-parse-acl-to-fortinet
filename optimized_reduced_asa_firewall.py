@@ -3,6 +3,17 @@ import os
 from collections import defaultdict
 
 
+def parse_csv(file_path):
+    rules = []
+    with open(file_path, mode='r', encoding='utf-8-sig') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            rules.append({
+                "source": row["source"],
+                "destination": row["destination"],
+                "ports": row["ports"]
+            })
+    return rules
 
 def convert_to_prefix_length(mask):
     try:
@@ -237,9 +248,8 @@ def write_fortinet_conf(rules, output_file, start_edit=9211):
 if __name__ == "__main__":
     # Configuration file for file paths
 
-    # Input file paths
     # Input file path
-    INPUT_FILE = '/home/dsu979/Downloads/Telegram Desktop/Fortigate-missing-policies.txt'
+    INPUT_FILE = input("Enter the path to the cleaned CSV firewall policy file: ")
 
     # Extract directory and base name of the input file
     input_dir = os.path.dirname(INPUT_FILE)  # Get the directory of the input file
