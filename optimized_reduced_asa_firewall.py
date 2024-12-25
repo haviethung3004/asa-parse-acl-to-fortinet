@@ -84,7 +84,7 @@ def parse_access_list(file_path):
                     destination = parts[dest_index + 1]
                     destination_mask = None
                 elif parts[dest_index] == "any" or parts[dest_index] == "any4":
-                    destination = parts[dest_index]
+                    destination = "all"
                     destination_mask = None
                 else:
                     if dest_index + 1 >= len(parts):  # Ensure destination_mask index is valid
@@ -239,7 +239,10 @@ def write_fortinet_conf(rules, output_file, start_edit=9211):
             ports = rule['ports'].split(',')
             services = ' '.join([f'"{port.strip()}"' for port in ports])
             file.write(f"    set service {services}\n")
-            
+
+            #comment
+            file.write(f"    set comments \"{sources[0].strip()}_{destinations[0].strip()}\"\n")
+
             file.write(f"next\n")
             edit_number += 1
         file.write("end\n")
