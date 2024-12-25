@@ -104,8 +104,12 @@ def parse_access_list(file_path):
                     port = "ICMP"
                 elif parts[-3] == "range":
                     port = f"{protocol}_{parts[-2]}-{parts[-1]}"
+                elif protocol == "tcp" and len(parts) < 10:
+                    port = "TCP"
+                elif protocol == "udp" and len(parts) < 10:
+                    port = "UDP"
                 elif parts[-2] == "object-group":
-                    port = f"{parts[-1]}" 
+                    port = f"{parts[-1]}"
                 elif "object-group" not in parts[-2:]:
                   if parts[-1].isdigit():
                       port = f"{protocol}_{parts[-1]}"
