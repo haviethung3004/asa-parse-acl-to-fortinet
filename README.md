@@ -96,7 +96,7 @@ Update these variables in the respective scripts as needed:
   The raw ACL configuration file to process:
 
   ```python
-  INPUT_FILE = '/path/to/your/input/file.txt'
+  INPUT_FILE 'Select your path file here'
   ```
 
 - **Output Files**:
@@ -137,16 +137,9 @@ Update these variables in the respective scripts as needed:
        set service "tcp_80"
        set action accept
        set schedule always
+       set comments "192.168.1.1_192.168.2.2"
    next
    ```
-
-## Contribution
-
-Contributions are welcome! To contribute:
-
-1. Fork the repository.
-2. Create a new branch for your feature/bugfix.
-3. Submit a pull request for review.
 
 ## License
 
@@ -154,5 +147,5 @@ This project is licensed under the MIT License. See `LICENSE` for details.
 
 ## Author
 
-Developed by [dsu979](mailto:your-email@example.com). For support or queries, contact the author or create an issue in this repository.
+For support or queries, contact dsu979 or create an issue in this repository.
 
