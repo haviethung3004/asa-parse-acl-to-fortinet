@@ -115,6 +115,8 @@ def parse_access_list(file_path):
                       port = f"{protocol}_{parts[-1]}"
                   else:
                       port = parts[-1].upper()
+                else:
+                    print(f"Error parsing port: {line}")
 
                 rules.append({
                     "protocol": protocol,
@@ -279,5 +281,5 @@ if __name__ == "__main__":
     # Write final rules to Fortinet configuration
     write_fortinet_conf(unique_rules, FORTINET_OUTPUT_FILE)
     
-    print(f"Successfully wrote cleaned firewall policy to {OUTPUT_FILE}")
+    print(f"\nSuccessfully wrote cleaned firewall policy to {OUTPUT_FILE}")
     print(f"Successfully wrote Fortinet configuration to {FORTINET_OUTPUT_FILE}")
