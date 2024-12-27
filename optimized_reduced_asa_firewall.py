@@ -175,7 +175,6 @@ def merge_rules(rules):
                 "destination": destination,
                 "ports": port
             })
-
     return merged_rules
 
 def read_csv(file_path):
@@ -186,31 +185,73 @@ def read_csv(file_path):
             rules.append(row)
     return rules
 
-def remove_duplicate_rules(rules):
+# def remove_duplicate_rules(rules):
+#     duplicated_rules = []
+#     unique_rules = []
+#     seen_source_port = set()
+#     seen_source_dest = set()
+#     seen_dest_port = set()
+
+#     for rule in rules:
+#         source = rule['source']
+#         destination = rule['destination']
+#         ports = rule['ports']
+
+#         source_port_key = (source, ports)
+#         source_dest_key = (source, destination)
+#         dest_port_key = (destination, ports)
+
+#         if (
+#             source_port_key in seen_source_port
+#             or source_dest_key in seen_source_dest 
+#             or dest_port_key in seen_dest_port
+#         ):
+#             continue  # Skip duplicates
+
+#         # Add to unique rules and mark as seen
+#         unique_rules.append(rule)
+#         seen_source_port.add(source_port_key)
+#         seen_source_dest.add(source_dest_key)
+#         seen_dest_port.add(dest_port_key)
+
+#     return unique_rules
+
+def remove_subset_rules_extended(rules):
     unique_rules = []
-    seen_source_port = set()
-    seen_source_dest = set()
-    seen_dest_port = set()
 
     for rule in rules:
-        source = rule['source']
-        destination = rule['destination']
-        ports = rule['ports']
+        source = set(rule['source'].split(','))  # Convert to set for subset check
+        destination = set(rule['destination'].split(','))
+        ports = set(rule['ports'].split(','))
 
-        source_port_key = (source, ports)
-        source_dest_key = (source, destination)
-        dest_port_key = (destination, ports)
+        is_subset = False
 
-        if source_port_key in seen_source_port or source_dest_key in seen_source_dest or dest_port_key in seen_dest_port:
-            continue
+        # Check if the current rule is a subset of any rule in unique_rules
+        for unique_rule in unique_rules:
+            unique_source = set(unique_rule['source'].split(','))
+            unique_destination = set(unique_rule['destination'].split(','))
+            unique_ports = set(unique_rule['ports'].split(','))
 
-        seen_source_port.add(source_port_key)
-        seen_source_dest.add(source_dest_key)
-        seen_dest_port.add(dest_port_key)
-        unique_rules.append(rule)
+            if (
+                source.issubset(unique_source)
+                and destination.issubset(unique_destination)
+                and ports.issubset(unique_ports)
+            ):
+                is_subset = True
+                break
 
+        if not is_subset:
+            # Remove any existing rules in unique_rules that are subsets of the current rule
+            unique_rules = [
+                unique_rule for unique_rule in unique_rules
+                if not (
+                    set(unique_rule['source'].split(',')).issubset(source)
+                    and set(unique_rule['destination'].split(',')).issubset(destination)
+                    and set(unique_rule['ports'].split(',')).issubset(ports)
+                )
+            ]
+            unique_rules.append(rule)
     return unique_rules
-
 
 def write_csv(rules, file_path):
     with open(file_path, mode='w', newline='') as file:
@@ -258,7 +299,8 @@ if __name__ == "__main__":
     # Configuration file for file paths
 
     # Input file path
-    INPUT_FILE = input("Enter the path to the cleaned CSV firewall policy file: ")
+    INPUT_FILE = "/home/dsu979/Desktop/PROJECT/ACI_Migration/Migrate_Policy/EPG_704_access-list.txt"
+    # INPUT_FILE = input("Enter the path to the cleaned CSV firewall policy file: ")
 
     # Extract directory and base name of the input file
     input_dir = os.path.dirname(INPUT_FILE)  # Get the directory of the input file
@@ -273,7 +315,7 @@ if __name__ == "__main__":
     merged_rules = merge_rules(rules)
 
     # Remove duplicate rules
-    unique_rules = remove_duplicate_rules(merged_rules)
+    unique_rules = remove_subset_rules_extended(merged_rules)
 
     # Write final rules to CSV
     write_csv(unique_rules, OUTPUT_FILE)
