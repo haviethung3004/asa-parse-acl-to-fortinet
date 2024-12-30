@@ -1,5 +1,6 @@
 import csv
 import os
+import pandas as pd
 from collections import defaultdict
 
 
@@ -119,63 +120,78 @@ def parse_access_list(file_path):
                     print(f"Error parsing port: {line}")
 
                 rules.append({
-                    "protocol": protocol,
                     "source": source if not source_mask else f"{source}/{source_mask}",
                     "destination": destination,
-                    "port": port
+                    "ports": port
                 })
     return rules
 
-def merge_rules(rules):
-    # Grouped by source and destination
-    source_dest_group = defaultdict(lambda: defaultdict(set))
-    # Grouped by source and port
-    source_port_group = defaultdict(lambda: defaultdict(set))
-    # Grouped by destination and port
-    dest_port_group = defaultdict(lambda: defaultdict(set))
 
+def merge_and_remove_duplicate_rule(rules):
+    """
+    Remove duplicate rules by merging based on specified criteria.
+    :param rules: DataFrame containing columns ['source', 'destination', 'ports']
+    :return: DataFrame with cleaned and merged rules
+    """
+    # Step 1: Merge rules with the same source and destination
+    merged_source_dest = (
+        rules.groupby(['source', 'destination'], as_index=False)
+        .agg({'ports': lambda x: ', '.join(sorted(set(x)))})
+    )
 
-    for rule in rules:
-        protocol = rule['protocol']
-        source = rule['source']
-        destination = rule['destination']
-        port = rule['port']
+    # Step 2: Remove the original rules that were merged (by source and destination)
+    merged_source_dest_keys = set(zip(merged_source_dest['source'], merged_source_dest['destination']))
+    remaining_data = rules[
+        ~rules.apply(lambda row: (row['source'], row['destination']) in merged_source_dest_keys, axis=1)
+    ]
 
-        # Group by source and destination
-        source_dest_group[source][destination].add(port)
-        # Group by source and port
-        source_port_group[source][port].add(destination)
-        # # Group by destination and port
-        dest_port_group[destination][port].add(source)
+    # Combine merged source-destination rules with remaining data
+    final_cleaned_data = pd.concat([merged_source_dest, remaining_data]).drop_duplicates()
 
-    merged_rules = []
-    # Create merged rules from source-destination group
-    for source, dests in source_dest_group.items():
-        for dest, ports in dests.items():
-            merged_rules.append({
-                "source": source,
-                "destination": dest,
-                "ports": ','.join(sorted(ports))
-            })
+    # Step 3: Merge rules with the same source and ports
+    merged_source_ports = (
+        final_cleaned_data.groupby(['source', 'ports'], as_index=False)
+        .agg({'destination': lambda x: ', '.join(sorted(set(x)))})
+    )
 
-    # Create merged rules from source-port group
-    for source, ports in source_port_group.items():
-        for port, dests in ports.items():
-            merged_rules.append({
-                "source": source,
-                "destination": ','.join(sorted(dests)),
-                "ports": port
-            })
+    # Remove original rules merged by source and ports
+    merged_source_ports_keys = set(zip(merged_source_ports['source'], merged_source_ports['ports']))
+    remaining_data_after_source_ports_merge = final_cleaned_data[
+        ~final_cleaned_data.apply(
+            lambda row: (row['source'], row['ports']) in merged_source_ports_keys, axis=1
+        )
+    ]
 
-    # Create merged rules from destination-port group
-    for destination, ports in dest_port_group.items():
-        for port, sources in ports.items():
-            merged_rules.append({
-                "source": ','.join(sorted(sources)),
-                "destination": destination,
-                "ports": port
-            })
-    return merged_rules
+    # Combine merged source-port rules with remaining data
+    final_source_ports_cleaned_data = pd.concat(
+        [merged_source_ports, remaining_data_after_source_ports_merge]
+    ).drop_duplicates()
+
+    # Step 4: Merge rules with the same destination and ports
+    merged_dest_ports = (
+        final_source_ports_cleaned_data.groupby(['destination', 'ports'], as_index=False)
+        .agg({'source': lambda x: ', '.join(sorted(set(x)))})
+    )
+
+    # Remove original rules merged by destination and ports
+    merged_dest_ports_keys = set(zip(merged_dest_ports['destination'], merged_dest_ports['ports']))
+    remaining_data_after_dest_ports_merge = final_source_ports_cleaned_data[
+        ~final_source_ports_cleaned_data.apply(
+            lambda row: (row['destination'], row['ports']) in merged_dest_ports_keys, axis=1
+        )
+    ]
+
+    # Combine merged destination-port rules with remaining data
+    final_dest_ports_cleaned_data = pd.concat(
+        [merged_dest_ports, remaining_data_after_dest_ports_merge]
+    ).drop_duplicates()
+
+    # Reformat the final data to source, destination, and ports structure
+    # final_dest_ports_csv_format_data = final_dest_ports_cleaned_data.explode('source')
+    # write_csv('final_dest_ports_csv_format_data.csv', final_dest_ports_csv_format_data)
+    final_output_data = final_dest_ports_cleaned_data[['source', 'destination', 'ports']].drop_duplicates()
+
+    return final_output_data
 
 def read_csv(file_path):
     rules = []
@@ -185,73 +201,6 @@ def read_csv(file_path):
             rules.append(row)
     return rules
 
-# def remove_duplicate_rules(rules):
-#     duplicated_rules = []
-#     unique_rules = []
-#     seen_source_port = set()
-#     seen_source_dest = set()
-#     seen_dest_port = set()
-
-#     for rule in rules:
-#         source = rule['source']
-#         destination = rule['destination']
-#         ports = rule['ports']
-
-#         source_port_key = (source, ports)
-#         source_dest_key = (source, destination)
-#         dest_port_key = (destination, ports)
-
-#         if (
-#             source_port_key in seen_source_port
-#             or source_dest_key in seen_source_dest 
-#             or dest_port_key in seen_dest_port
-#         ):
-#             continue  # Skip duplicates
-
-#         # Add to unique rules and mark as seen
-#         unique_rules.append(rule)
-#         seen_source_port.add(source_port_key)
-#         seen_source_dest.add(source_dest_key)
-#         seen_dest_port.add(dest_port_key)
-
-#     return unique_rules
-
-def remove_subset_rules_extended(rules):
-    unique_rules = []
-
-    for rule in rules:
-        source = set(rule['source'].split(','))  # Convert to set for subset check
-        destination = set(rule['destination'].split(','))
-        ports = set(rule['ports'].split(','))
-
-        is_subset = False
-
-        # Check if the current rule is a subset of any rule in unique_rules
-        for unique_rule in unique_rules:
-            unique_source = set(unique_rule['source'].split(','))
-            unique_destination = set(unique_rule['destination'].split(','))
-            unique_ports = set(unique_rule['ports'].split(','))
-
-            if (
-                source.issubset(unique_source)
-                and destination.issubset(unique_destination)
-                and ports.issubset(unique_ports)
-            ):
-                is_subset = True
-                break
-
-        if not is_subset:
-            # Remove any existing rules in unique_rules that are subsets of the current rule
-            unique_rules = [
-                unique_rule for unique_rule in unique_rules
-                if not (
-                    set(unique_rule['source'].split(',')).issubset(source)
-                    and set(unique_rule['destination'].split(',')).issubset(destination)
-                    and set(unique_rule['ports'].split(',')).issubset(ports)
-                )
-            ]
-            unique_rules.append(rule)
-    return unique_rules
 
 def write_csv(rules, file_path):
     with open(file_path, mode='w', newline='') as file:
@@ -296,32 +245,25 @@ def write_fortinet_conf(rules, output_file, start_edit=9211):
 
 
 if __name__ == "__main__":
-    # Configuration file for file paths
+    input_file = "EPG_704_access-list.txt"
+    intermediate_file = "EPG_704_accesslist_original_rules.csv"
+    output_file = "Final_Merged_Rules.csv"
 
-    # Input file path
-    INPUT_FILE = "/home/dsu979/Desktop/PROJECT/ACI_Migration/Migrate_Policy/EPG_704_access-list.txt"
-    # INPUT_FILE = input("Enter the path to the cleaned CSV firewall policy file: ")
+    # Parse access list
+    rules = parse_access_list(input_file)
 
-    # Extract directory and base name of the input file
-    input_dir = os.path.dirname(INPUT_FILE)  # Get the directory of the input file
-    base_name = os.path.splitext(os.path.basename(INPUT_FILE))[0]  # Extract base name of the input file
+    # Save intermediate rules
+    with open(intermediate_file, 'w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=rules[0].keys())
+        writer.writeheader()
+        writer.writerows(rules)
 
-    # Generate dynamic output paths in the same directory
-    OUTPUT_FILE = os.path.join(input_dir, f"{base_name}_cleaned_firewall_policy.csv")
-    FORTINET_OUTPUT_FILE = os.path.join(input_dir, f"{base_name}_acls.conf")
+    # Remove duplicates
+    rules_df = pd.read_csv(intermediate_file)
+    cleaned_rules = merge_and_remove_duplicate_rule(rules_df)
+    print(cleaned_rules.to_dict('records'))
+    write_fortinet_conf(cleaned_rules.to_dict('records'), "fortinet_conf.txt")
 
-    # Parse and merge rules
-    rules = parse_access_list(INPUT_FILE)
-    merged_rules = merge_rules(rules)
-
-    # Remove duplicate rules
-    unique_rules = remove_subset_rules_extended(merged_rules)
-
-    # Write final rules to CSV
-    write_csv(unique_rules, OUTPUT_FILE)
-
-    # Write final rules to Fortinet configuration
-    write_fortinet_conf(unique_rules, FORTINET_OUTPUT_FILE)
-    
-    print(f"\nSuccessfully wrote cleaned firewall policy to {OUTPUT_FILE}")
-    print(f"Successfully wrote Fortinet configuration to {FORTINET_OUTPUT_FILE}")
+    # Save final rules
+    cleaned_rules.to_csv(output_file, index=False)
+    print(f"Final cleaned rules saved to {output_file}")

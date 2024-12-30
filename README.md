@@ -1,151 +1,152 @@
-# ASA ACL Parser and Cleaner
+## Access List Parser and Converter
 
-This repository provides a set of Python scripts to parse, clean, merge, and export Access Control List (ACL) policies for Cisco ASA and Fortinet devices. The tools simplify firewall rule management by automating redundant rule detection, merging overlapping rules, and generating Fortinet-compatible configuration files.
+## Overview
+This Python script is designed to parse access lists from a text file, convert them into CSV format, remove duplicate rules, and generate configurations compatible with Fortinet devices. The tool is highly customizable and modular, allowing easy integration into network management workflows.
 
-## Files in the Repository
-
-1. **`optimized_reduced_asa_firewall.py`**:
-
-   - Provides core functions to parse and clean ASA firewall rules.
-   - Merges overlapping or redundant rules.
-   - Exports the cleaned data for further processing or configuration generation.
-
-2. **`Export_CSV_optimized.py`**:
-
-   - Converts cleaned and optimized rules into CSV format.
-   - Useful for archival or further analysis of firewall policies.
-
-3. **`Export_Fortinet_format_policy.py`**:
-
-   - Generates Fortinet-compatible configuration files based on the cleaned CSV rules.
-   - Simplifies deployment by creating ready-to-use configuration scripts.
+---
 
 ## Features
+1. **Access List Parsing**:
+   - Parses ACL files containing permit rules.
+   - Dynamically interprets source, destination, and ports.
 
-- **ACL Parsing**: Extracts relevant details from raw ACL configuration files (e.g., source, destination, ports, and protocols).
-- **Rule Merging**: Combines rules with the same source, destination, and ports to optimize the configuration.
-- **Duplicate Removal**: Identifies and removes redundant rules based on specific criteria.
-- **Fortinet Configuration Generation**: Automatically generates Fortinet-compatible ACL configurations.
-- **CSV Export**: Outputs cleaned and merged rules into CSV format for further analysis or archival.
+2. **Duplicate Rule Management**:
+   - Identifies and removes duplicate rules based on source, destination, and ports.
+   - Groups and merges rules with shared attributes.
 
-## Requirements
+3. **File Conversion**:
+   - Converts access lists into a structured CSV format.
+   - Supports re-saving cleaned data as CSV.
 
-This project requires Python 3.x and the following libraries:
+4. **Fortinet Configuration Generator**:
+   - Outputs configuration files in Fortinet-compatible syntax.
+   - Supports bulk edit numbering and multiple attributes.
 
-- `csv`
-- `collections` (default library)
-- `os` (default library)
+---
 
-Ensure Python is installed and accessible from your system.
+## Prerequisites
+### Software Requirements:
+- Python 3.7 or higher
+- Required Python Libraries:
+  - `pandas`
+  - `csv`
 
-## Installation
-
-1. Clone the repository:
-
+### Installation:
+1. Install Python from [python.org](https://www.python.org/).
+2. Install the required libraries by running:
    ```bash
-   git clone https://git.dision.office/dsu979/ASA-acl-parser-and-cleaner.git
-   cd ASA-acl-parser-and-cleaner
+   pip install pandas
    ```
 
-2. Ensure Python is installed:
-
-   ```bash
-   python3 --version
-   ```
+---
 
 ## Usage
 
-1. **Optimize ASA Firewall Rules**:
-   Import and use `optimized_reduced_asa_firewall.py` to parse and clean ASA firewall rules.
+### Input Files:
+1. **Access List File** (`EPG_704_access-list.txt`):
+   - Contains access list rules in plain text format.
 
-   Example:
-   ```python
-   from optimized_reduced_asa_firewall import parse_access_list, clean_rules
+### Generated Files:
+1. **Intermediate Rules** (`EPG_704_accesslist_original_rules.csv`):
+   - A raw CSV representation of parsed rules.
 
-   rules = parse_access_list("/path/to/input/acl.txt")
-   cleaned_rules = clean_rules(rules)
-   print(cleaned_rules)
-   ```
+2. **Final Merged Rules** (`Final_Merged_Rules.csv`):
+   - The deduplicated and cleaned rules in CSV format.
 
-2. **Export to CSV**:
-   Use the `Export_CSV_optimized.py` script to generate a CSV file with the cleaned rules.
+3. **Fortinet Configuration** (`fortinet_conf.txt`):
+   - Fortinet-compatible configuration file.
 
+### Running the Script
+1. Ensure the input file is located in the working directory.
+2. Execute the script:
    ```bash
-   python3 Export_CSV_optimized.py
+   python script_name.py
    ```
-   When prompted, provide the path to the raw ACL input file.
+3. The script processes the access list and produces the output files in the current directory.
 
-3. **Generate Fortinet Configuration**:
-   Use the `Export_Fortinet_format_policy.py` script to generate a Fortinet-compatible configuration file from the cleaned CSV.
+---
 
-   ```bash
-   python3 Export_Fortinet_format_policy.py
-   ```
-   When prompted, provide the path to the cleaned CSV file.
+## Functionality Breakdown
 
-### Outputs
+### Key Functions:
 
-- **Cleaned CSV File**: Contains the deduplicated and merged ACL rules in CSV format.
-- **Fortinet Configuration File**: A Fortinet-compatible configuration script ready for deployment.
+#### `parse_csv(file_path)`
+- Reads CSV files and extracts source, destination, and ports as rules.
 
-## Configuration
+#### `convert_to_prefix_length(mask)`
+- Converts a subnet mask into a prefix length.
 
-Update these variables in the respective scripts as needed:
+#### `parse_access_list(file_path)`
+- Parses access list text files and generates structured rules.
+- Dynamically identifies attributes like `object`, `host`, and `any`.
 
-- **Input File**:
-  The raw ACL configuration file to process:
+#### `merge_and_remove_duplicate_rule(rules)`
+- Deduplicates and merges rules based on:
+  - Source and destination.
+  - Source and ports.
+  - Destination and ports.
 
+#### `write_csv(rules, file_path)`
+- Writes structured rules to a CSV file.
+
+#### `write_fortinet_conf(rules, output_file, start_edit=9211)`
+- Generates Fortinet-compatible configuration syntax from rules.
+
+---
+
+## Example
+
+### Input Access List:
+```
+permit ip any host 192.168.1.1 eq 80
+permit tcp object-group NET_1 host 10.0.0.1 range 1024 2048
+```
+
+### Generated Fortinet Configuration:
+```
+edit 9211
+    set name merged-9211
+    set srcintf "any"
+    set dstintf "any"
+    set action accept
+    set srcaddr "all"
+    set dstaddr "192.168.1.1"
+    set schedule always
+    set service "TCP_80"
+    set comments "all_192.168.1.1"
+next
+```
+
+---
+
+## Customization
+- Modify input and output file paths by changing these variables in the script:
   ```python
-  INPUT_FILE 'Select your path file here'
+  input_file = "EPG_704_access-list.txt"
+  intermediate_file = "EPG_704_accesslist_original_rules.csv"
+  output_file = "Final_Merged_Rules.csv"
   ```
+- Adjust the starting edit number for Fortinet configurations via the `start_edit` parameter in `write_fortinet_conf()`.
 
-- **Output Files**:
-  These are dynamically generated based on the input file's name and directory:
+---
 
-  - `cleaned_firewall_policy.csv`
-  - `acl_conf`
+## Troubleshooting
+- **Error: `ModuleNotFoundError: No module named 'pandas'`**
+  - Solution: Install the pandas library using:
+    ```bash
+    pip install pandas
+    ```
 
-## Example Workflow
+- **Error: FileNotFoundError**
+  - Solution: Verify that the input file path is correct and the file exists in the directory.
 
-1. Input File:
-   A raw ACL configuration file like this:
+---
 
-   ```plaintext
-   permit tcp host 192.168.1.1 host 192.168.2.2 eq 80
-   permit udp any any eq 53
-   ```
+## Contribution
+Contributions to improve parsing logic, extend compatibility, or enhance functionality are welcome. Submit issues or pull requests via GitHub.
 
-2. Cleaned Rules CSV:
-   Run `Export_CSV_optimized.py` to generate the cleaned CSV file:
-
-   ```csv
-   source,destination,ports
-   192.168.1.1,192.168.2.2,tcp_80
-   all,all,udp_53
-   ```
-
-3. Fortinet Configuration File:
-   Use `Export_Fortinet_format_policy.py` to generate the configuration file:
-
-   ```plaintext
-   edit 9211
-       set name merged-9211
-       set srcintf "any"
-       set dstintf "any"
-       set srcaddr "192.168.1.1"
-       set dstaddr "192.168.2.2"
-       set service "tcp_80"
-       set action accept
-       set schedule always
-       set comments "192.168.1.1_192.168.2.2"
-   next
-   ```
+---
 
 ## License
-
-This project is licensed under the MIT License. See `LICENSE` for details.
-
-## Author
-
-For support or queries, contact dsu979 or create an issue in this repository.
+This project is licensed under the MIT License.
 
