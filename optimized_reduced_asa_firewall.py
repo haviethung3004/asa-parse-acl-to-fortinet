@@ -54,7 +54,7 @@ def parse_access_list(file_path):
                     source_mask = None
                     source_index += 1
                 elif parts[source_index - 1] == "host":
-                    source = parts[source_index]
+                    source = parts[source_index] + "/32"
                     source_mask = None
                     source_index += 1
                 elif parts[source_index - 1] == "any" or parts[source_index - 1] == "any4":
@@ -82,7 +82,7 @@ def parse_access_list(file_path):
                     destination = parts[dest_index + 1]
                     destination_mask = None
                 elif parts[dest_index] == "host":
-                    destination = parts[dest_index + 1]
+                    destination = parts[dest_index + 1] + "/32"
                     destination_mask = None
                 elif parts[dest_index] == "any" or parts[dest_index] == "any4":
                     destination = "all"
@@ -136,8 +136,10 @@ def merge_and_remove_duplicate_rule(rules):
     # Step 1: Merge rules with the same source and destination
     merged_source_dest = (
         rules.groupby(['source', 'destination'], as_index=False)
-        .agg({'ports': lambda x: ', '.join(sorted(set(x)))})
+        .agg({'ports': lambda x: ','.join(sorted(set(x)))})
     )
+
+    
 
     # Step 2: Remove the original rules that were merged (by source and destination)
     merged_source_dest_keys = set(zip(merged_source_dest['source'], merged_source_dest['destination']))
@@ -145,13 +147,14 @@ def merge_and_remove_duplicate_rule(rules):
         ~rules.apply(lambda row: (row['source'], row['destination']) in merged_source_dest_keys, axis=1)
     ]
 
+
     # Combine merged source-destination rules with remaining data
     final_cleaned_data = pd.concat([merged_source_dest, remaining_data]).drop_duplicates()
 
     # Step 3: Merge rules with the same source and ports
     merged_source_ports = (
         final_cleaned_data.groupby(['source', 'ports'], as_index=False)
-        .agg({'destination': lambda x: ', '.join(sorted(set(x)))})
+        .agg({'destination': lambda x: ','.join(sorted(set(x)))})
     )
 
     # Remove original rules merged by source and ports
@@ -170,7 +173,7 @@ def merge_and_remove_duplicate_rule(rules):
     # Step 4: Merge rules with the same destination and ports
     merged_dest_ports = (
         final_source_ports_cleaned_data.groupby(['destination', 'ports'], as_index=False)
-        .agg({'source': lambda x: ', '.join(sorted(set(x)))})
+        .agg({'source': lambda x: ','.join(sorted(set(x)))})
     )
 
     # Remove original rules merged by destination and ports
@@ -261,7 +264,6 @@ if __name__ == "__main__":
     # Remove duplicates
     rules_df = pd.read_csv(intermediate_file)
     cleaned_rules = merge_and_remove_duplicate_rule(rules_df)
-    print(cleaned_rules.to_dict('records'))
     write_fortinet_conf(cleaned_rules.to_dict('records'), "fortinet_conf.txt")
 
     # Save final rules

@@ -15,7 +15,7 @@ def calculate_subnet_from_prefix(prefix):
     # Join as a dotted string
     return ".".join(map(str, subnet_mask))
 
-def dst_address(file):
+def dst_src_address(file):
   with open(file, 'r') as f:
     reader = csv.DictReader(f)
     dst_list = []
@@ -33,7 +33,26 @@ def dst_address(file):
     unique_dst = set(unique_dst)
     return unique_dst
 
-def Compare_and_remove_duplicates(file, unique_dst):
+def service_addr(file):
+    with open(file, mode='r') as f:
+        reader = csv.DictReader(f)
+        service_list = []
+        unique_service = []
+        for row in reader:
+            service_list.append(row['ports'])
+        for service in service_list:
+            if "," in service:
+                service = service.split(",")
+                for s in service:
+                    unique_service.append(s)
+            else:
+                unique_service.append(service)
+    unique_service = set(unique_service)
+    return unique_service            
+    
+
+
+def Compare_and_remove_src_dst_duplicates(file, unique_dst):
    with open(file, mode='r') as f:
     for line in f:
         if 'edit' in line:
@@ -44,8 +63,20 @@ def Compare_and_remove_duplicates(file, unique_dst):
               if ip.split('/')[0] in unique_dst:
                   unique_dst.remove(ip.split('/')[0])
     return unique_dst
-   
-def Fortinet_address_format(file_path, unique_dst):
+
+
+def Compare_and_remove_service_duplicates(file, unique_service):
+    with open(file, mode='r') as f:
+        for line in f:
+            if 'edit' in line:
+                service = line.split("\"")[1]
+                if service in unique_service:
+                    unique_service.remove(service)
+    print(unique_service)
+    return unique_service
+
+
+def Fortinet_dest_src_address_format(file_path, unique_dst):
     with open(file_path, mode='w', newline='') as f:
         f.write("config firewall address\n")
         
@@ -68,19 +99,30 @@ def Fortinet_address_format(file_path, unique_dst):
 
 
 if __name__ == "__main__":
-    file_path = 'EPG_704_access-list_cleaned_firewall_policy.csv'
-    
-    # Step 1: Extract destination addresses
-    extract_destination  = dst_address(file_path)
+    file_path = 'Final_Merged_Rules.csv'
+
+    extract_serivce = service_addr(file_path)    
+    #  Extract destination addresses
+    extract_destination  = dst_src_address(file_path)
+
         
-    # Step 2: Save the unique destinations to a CSV file
+    # Save the unique destinations to a CSV file
     output_file = 'unique_destinations.csv'
     with open(output_file, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['destination'])  # Write header
         writer.writerows([[dest] for dest in extract_destination])  # Write data rows
-    # Step 3: Compare_and_remove_duplicates
-    unique_dst = Compare_and_remove_duplicates('/home/dsu979/Downloads/Telegram Desktop/address_and_addressgrp.txt', extract_destination)
+    # Compare_and_remove_duplicates
+    unique_dst = Compare_and_remove_src_dst_duplicates('/home/dsu979/Downloads/Telegram Desktop/address_and_addressgrp.txt', extract_destination)
 
-    # Step 4: Fortinet_address_format
-    Fortinet_address_format('Fortinet_addr_format_missing.txt', unique_dst)
+    unique_service = Compare_and_remove_service_duplicates('/home/dsu979/Downloads/Telegram Desktop/config firewall service custom (3).bat', extract_serivce)
+
+    output_file_2 = 'unique_services.csv'
+    with open(output_file_2, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['service'])
+        writer.writerows([[service] for service in unique_service])
+
+    
+    # Fortinet_address_format
+    Fortinet_dest_src_address_format('Fortinet_addr_format_missing.txt', unique_dst)

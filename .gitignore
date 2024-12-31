@@ -1,4 +1,5 @@
 Check_dst.py
+__pycache__
 *.txt
 *.csv
 *.conf
