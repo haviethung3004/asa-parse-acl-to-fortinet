@@ -100,7 +100,7 @@ def parse_access_list(file_path):
 
                 # Dynamically parse the port
                 if protocol == "ip":
-                    port = "ANY"        
+                    port = "all"        
                 elif protocol == "icmp":
                     port = "ICMP"
                 elif parts[-3] == "range":
@@ -118,7 +118,7 @@ def parse_access_list(file_path):
                       port = parts[-1].upper()
                 else:
                     print(f"Error parsing port: {line}")
-
+                #Remember that sql_net = 1521
                 rules.append({
                     "source": source if not source_mask else f"{source}/{source_mask}",
                     "destination": destination,
