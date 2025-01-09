@@ -32,7 +32,7 @@ def convert_to_prefix_length(mask):
         print(f"Error converting mask to prefix length: {mask}. Error: {e}")
         return mask
 
-def parse_access_list(file_path):
+def parse_access_list_permit(file_path):
     rules = []
     with open(file_path, 'r') as file:
         for line in file:
@@ -126,6 +126,105 @@ def parse_access_list(file_path):
                 })
     return rules
 
+def parse_access_list_deny(file_path):
+    rules = []
+    with open(file_path, 'r') as file:
+        for line in file:
+            if "deny" in line:
+                parts = line.split()
+                if len(parts) < 7:  # Skip lines with too few tokens
+                    continue
+
+                protocol = parts[4]
+
+                # Dynamically parse the source
+                source_index = 6
+                if parts[source_index - 1] == "object":
+                    source = parts[source_index]
+                    source_mask = None
+                    source_index += 1
+                elif parts[source_index - 1] == "object-group":
+                    source = parts[source_index]
+                    source_mask = None
+                    source_index += 1
+                elif parts[source_index - 1] == "host":
+                    source = parts[source_index] + "/32"
+                    source_mask = None
+                    source_index += 1
+                elif parts[source_index - 1] == "any" or parts[source_index - 1] == "any4":
+                    # source = parts[source_index]
+                    source = "all"
+                    source_mask = None
+                    # source_index += 1
+                else:
+                    source = parts[source_index - 1]
+                    source_mask = parts[source_index]
+                    source_index += 1
+                # Convert source mask to prefix length
+                    if source_mask:
+                        source_mask = convert_to_prefix_length(source_mask)
+                        source = f"{source}"
+                        # e
+                # Dynamically parse the destination
+                dest_index = source_index
+                if dest_index >= len(parts):  # Ensure dest_index is valid
+                    continue
+                if parts[dest_index] == "object":
+                    destination = parts[dest_index + 1]
+                    destination_mask = None
+                elif parts[dest_index] == "object-group":
+                    destination = parts[dest_index + 1]
+                    destination_mask = None
+                elif parts[dest_index] == "host":
+                    destination = parts[dest_index + 1] + "/32"
+                    destination_mask = None
+                elif parts[dest_index] == "any" or parts[dest_index] == "any4":
+                    destination = "all"
+                    destination_mask = None
+                else:
+                    if dest_index + 1 >= len(parts):  # Ensure destination_mask index is valid
+                        continue
+                    destination = parts[dest_index]
+                    destination_mask = parts[dest_index + 1]
+                    dest_index += 1
+                    # Convert destination mask to prefix length
+                    if destination_mask:
+                        destination_mask = convert_to_prefix_length(destination_mask)
+                        destination = f"{destination}/{destination_mask}"
+
+                # Dynamically parse the port
+                if protocol == "ip":
+                    port = "all"        
+                elif protocol == "icmp":
+                    port = "ICMP"
+                elif parts[-3] == "range":
+                    port = f"{protocol}_{parts[-2]}-{parts[-1]}"
+                elif protocol == "tcp" and len(parts) < 10:
+                    port = "TCP"
+                elif protocol == "udp" and len(parts) < 10:
+                    port = "UDP"
+                elif parts[-2] == "object-group":
+                    port = f"{parts[-1]}"
+                elif parts[-1] == "disable" and parts[-5] == "range":
+                    port = f"{protocol}_{parts[-4]}-{parts[-3]}"
+                    print(port)
+                elif parts[-1] == "disable":
+                    port = f"{protocol}_{parts[-3]}"
+                    print(port)
+                elif "object-group" not in parts[-2:]:
+                  if parts[-1].isdigit():
+                      port = f"{protocol}_{parts[-1]}"
+                  else:
+                      port = parts[-1].upper()
+                else:
+                    print(f"Error parsing port: {line}")
+                #Remember that sql_net = 1521
+                rules.append({
+                    "source": source if not source_mask else f"{source}/{source_mask}",
+                    "destination": destination,
+                    "ports": port
+                })
+    return rules
 
 def merge_and_remove_duplicate_rule(rules):
     """
@@ -212,7 +311,7 @@ def write_csv(rules, file_path):
         for rule in rules:
             writer.writerow(rule)
 
-def write_fortinet_conf(rules, output_file, start_edit=9211):
+def write_fortinet_conf(rules, output_file, start_edit=1, action=None):
     with open(output_file, mode='w') as file:
         edit_number = start_edit
         for rule in rules:
@@ -220,7 +319,9 @@ def write_fortinet_conf(rules, output_file, start_edit=9211):
             file.write(f"    set name merged-{edit_number}\n")
             file.write(f"    set srcintf \"any\"\n")
             file.write(f"    set dstintf \"any\"\n")
-            file.write(f"    set action accept\n")
+
+            if action:
+                file.write(f"    set action \"{action}\"\n")
             
             # Handle multiple sources
             sources = rule['source'].split(',')
@@ -248,12 +349,12 @@ def write_fortinet_conf(rules, output_file, start_edit=9211):
 
 
 if __name__ == "__main__":
-    input_file = "EPG_704_access-list.txt"
-    intermediate_file = "EPG_704_accesslist_original_rules.csv"
-    output_file = "Final_Merged_Rules.csv"
+    input_file = "all_accesslist.txt"
+    intermediate_file = "all_accesslist_original_rules.csv"
+    output_file = "All_Final_Merged_Rules.csv"
 
     # Parse access list
-    rules = parse_access_list(input_file)
+    rules = parse_access_list_permit(input_file)
 
     # Save intermediate rules
     with open(intermediate_file, 'w', newline='') as file:
@@ -264,7 +365,7 @@ if __name__ == "__main__":
     # Remove duplicates
     rules_df = pd.read_csv(intermediate_file)
     cleaned_rules = merge_and_remove_duplicate_rule(rules_df)
-    write_fortinet_conf(cleaned_rules.to_dict('records'), "fortinet_conf.txt")
+    write_fortinet_conf(cleaned_rules.to_dict('records'), "all_fortinet_conf.txt")
 
     # Save final rules
     cleaned_rules.to_csv(output_file, index=False)
