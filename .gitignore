@@ -2,3 +2,5 @@ Check_dst.py
 *.txt
 *.csv
 *.conf
+
+__pycache__/
