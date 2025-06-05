@@ -1,152 +1,120 @@
-## Access List Parser and Converter
+# ASA Firewall ACL Parser and Cleaner
 
-## Overview
-This Python script is designed to parse access lists from a text file, convert them into CSV format, remove duplicate rules, and generate configurations compatible with Fortinet devices. The tool is highly customizable and modular, allowing easy integration into network management workflows.
-
----
+This tool parses Cisco ASA firewall access control lists (ACLs) and converts them to Fortinet configuration format. It also optimizes the rules by merging duplicate or similar rules.
 
 ## Features
-1. **Access List Parsing**:
-   - Parses ACL files containing permit rules.
-   - Dynamically interprets source, destination, and ports.
 
-2. **Duplicate Rule Management**:
-   - Identifies and removes duplicate rules based on source, destination, and ports.
-   - Groups and merges rules with shared attributes.
+- Parse Cisco ASA access lists from text files
+- Extract permit and deny rules separately
+- Optimize rules by merging duplicates
+- Convert subnet masks to CIDR notation
+- Generate Fortinet-compatible configuration files
+- Export rules to CSV format
 
-3. **File Conversion**:
-   - Converts access lists into a structured CSV format.
-   - Supports re-saving cleaned data as CSV.
+## Requirements
 
-4. **Fortinet Configuration Generator**:
-   - Outputs configuration files in Fortinet-compatible syntax.
-   - Supports bulk edit numbering and multiple attributes.
+- Python 3.6 or higher
+- pandas library
 
----
+## Installation
 
-## Prerequisites
-### Software Requirements:
-- Python 3.7 or higher
-- Required Python Libraries:
-  - `pandas`
-  - `csv`
+1. Clone this repository:
 
-### Installation:
-1. Install Python from [python.org](https://www.python.org/).
-2. Install the required libraries by running:
-   ```bash
-   pip install pandas
-   ```
+```
+git clone https://github.com/yourusername/ASA-acl-parser-and-cleaner.git
+cd ASA-acl-parser-and-cleaner
+```
 
----
+2. Install dependencies:
+
+```
+pip install pandas
+```
 
 ## Usage
 
-### Input Files:
-1. **Access List File** (`EPG_704_access-list.txt`):
-   - Contains access list rules in plain text format.
+### Using main.py (Command-line Interface)
 
-### Generated Files:
-1. **Intermediate Rules** (`EPG_704_accesslist_original_rules.csv`):
-   - A raw CSV representation of parsed rules.
-
-2. **Final Merged Rules** (`Final_Merged_Rules.csv`):
-   - The deduplicated and cleaned rules in CSV format.
-
-3. **Fortinet Configuration** (`fortinet_conf.txt`):
-   - Fortinet-compatible configuration file.
-
-### Running the Script
-1. Ensure the input file is located in the working directory.
-2. Execute the script:
-   ```bash
-   python script_name.py
-   ```
-3. The script processes the access list and produces the output files in the current directory.
-
----
-
-## Functionality Breakdown
-
-### Key Functions:
-
-#### `parse_csv(file_path)`
-- Reads CSV files and extracts source, destination, and ports as rules.
-
-#### `convert_to_prefix_length(mask)`
-- Converts a subnet mask into a prefix length.
-
-#### `parse_access_list(file_path)`
-- Parses access list text files and generates structured rules.
-- Dynamically identifies attributes like `object`, `host`, and `any`.
-
-#### `merge_and_remove_duplicate_rule(rules)`
-- Deduplicates and merges rules based on:
-  - Source and destination.
-  - Source and ports.
-  - Destination and ports.
-
-#### `write_csv(rules, file_path)`
-- Writes structured rules to a CSV file.
-
-#### `write_fortinet_conf(rules, output_file, start_edit=9211)`
-- Generates Fortinet-compatible configuration syntax from rules.
-
----
-
-## Example
-
-### Input Access List:
 ```
-permit ip any host 192.168.1.1 eq 80
-permit tcp object-group NET_1 host 10.0.0.1 range 1024 2048
+python main.py -i <input_file> -a <action>
 ```
 
-### Generated Fortinet Configuration:
+Arguments:
+- `-i, --input`: Input file containing ACL rules
+- `-a, --action`: Type of rules to process ('permit' or 'deny', default: 'permit')
+
+If you don't provide arguments, the script will prompt you for them.
+
+Example:
 ```
-edit 9211
-    set name merged-9211
-    set srcintf "any"
-    set dstintf "any"
-    set action accept
-    set srcaddr "all"
-    set dstaddr "192.168.1.1"
-    set schedule always
-    set service "TCP_80"
-    set comments "all_192.168.1.1"
-next
+python main.py -i sample.txt -a permit
 ```
 
----
+### Using the Python API
 
-## Customization
-- Modify input and output file paths by changing these variables in the script:
-  ```python
-  input_file = "EPG_704_access-list.txt"
-  intermediate_file = "EPG_704_accesslist_original_rules.csv"
-  output_file = "Final_Merged_Rules.csv"
-  ```
-- Adjust the starting edit number for Fortinet configurations via the `start_edit` parameter in `write_fortinet_conf()`.
+```python
+import pandas as pd
+from optimized_reduced_asa_firewall import (
+    parse_access_list_permit, 
+    parse_access_list_deny,
+    merge_and_remove_duplicate_rule,
+    write_fortinet_conf
+)
 
----
+# Parse ACL file
+rules = parse_access_list_permit("sample.txt")
 
-## Troubleshooting
-- **Error: `ModuleNotFoundError: No module named 'pandas'`**
-  - Solution: Install the pandas library using:
-    ```bash
-    pip install pandas
-    ```
+# Save intermediate rules
+import csv
+with open("intermediate_rules.csv", 'w', newline='') as file:
+    writer = csv.DictWriter(file, fieldnames=rules[0].keys())
+    writer.writeheader()
+    writer.writerows(rules)
 
-- **Error: FileNotFoundError**
-  - Solution: Verify that the input file path is correct and the file exists in the directory.
+# Process and merge rules
+rule_df = pd.read_csv("intermediate_rules.csv")
+cleaned_rules = merge_and_remove_duplicate_rule(rule_df)
 
----
+# Write Fortinet configuration
+write_fortinet_conf(
+    cleaned_rules.to_dict('records'), 
+    "fortinet_config.conf", 
+    action="accept"
+)
 
-## Contribution
-Contributions to improve parsing logic, extend compatibility, or enhance functionality are welcome. Submit issues or pull requests via GitHub.
+# Save final rules to CSV
+cleaned_rules.to_csv("final_rules.csv", index=False)
+```
 
----
+## Output Files
+
+The script generates three output files:
+1. `{input_filename}_repo_{action}.csv`: Intermediate file with parsed rules
+2. `{input_filename}_final_{action}.csv`: Final file with optimized rules
+3. `{input_filename}_{action}.conf`: Fortinet configuration file
+
+## Recent Optimizations
+
+1. **Code Structure**:
+   - Refactored duplicate functions into a single implementation
+   - Added proper type hints for better code readability and error checking
+   - Improved documentation with docstrings
+
+2. **Performance**:
+   - Optimized file I/O operations
+   - Improved error handling with detailed error messages
+   - Enhanced CSV processing
+
+3. **User Interface**:
+   - Added command-line argument parsing
+   - Improved progress and status messages
+   - Better error reporting
+
+4. **Maintainability**:
+   - Separated concerns into modular functions
+   - Added validation and error checking throughout the code
+   - Improved naming conventions for clarity
 
 ## License
-This project is licensed under the MIT License.
 
+[Your license information]
