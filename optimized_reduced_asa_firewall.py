@@ -1,7 +1,5 @@
 import csv
-import os
 import pandas as pd
-from collections import defaultdict
 
 
 def parse_csv(file_path):
@@ -226,90 +224,100 @@ def parse_access_list_deny(file_path):
                 })
     return rules
 
-def merge_and_remove_duplicate_rule(rules):
+def merge_and_remove_duplicate_rule(rules: pd.DataFrame) -> pd.DataFrame:
     """
     Remove duplicate rules by merging based on specified criteria.
     :param rules: DataFrame containing columns ['source', 'destination', 'ports']
     :return: DataFrame with cleaned and merged rules
     """
-    # Step 1: Merge rules with the same source and destination
-    merged_source_dest = (
-        rules.groupby(['source', 'destination'], as_index=False)
-        .agg({'ports': lambda x: ','.join(sorted(set(x)))})
-    )
-
-    
-
-    # Step 2: Remove the original rules that were merged (by source and destination)
-    merged_source_dest_keys = set(zip(merged_source_dest['source'], merged_source_dest['destination']))
-    remaining_data = rules[
-        ~rules.apply(lambda row: (row['source'], row['destination']) in merged_source_dest_keys, axis=1)
-    ]
-
-
-    # Combine merged source-destination rules with remaining data
-    final_cleaned_data = pd.concat([merged_source_dest, remaining_data]).drop_duplicates()
-
-    # Step 3: Merge rules with the same source and ports
-    merged_source_ports = (
-        final_cleaned_data.groupby(['source', 'ports'], as_index=False)
-        .agg({'destination': lambda x: ','.join(sorted(set(x)))})
-    )
-
-    # Remove original rules merged by source and ports
-    merged_source_ports_keys = set(zip(merged_source_ports['source'], merged_source_ports['ports']))
-    remaining_data_after_source_ports_merge = final_cleaned_data[
-        ~final_cleaned_data.apply(
-            lambda row: (row['source'], row['ports']) in merged_source_ports_keys, axis=1
+    try:
+        # Step 1: Merge rules with the same source and destination
+        merged_source_dest = (
+            rules.groupby(['source', 'destination'], as_index=False)
+            .agg({'ports': lambda x: ','.join(sorted(set(x)))})
         )
-    ]
 
-    # Combine merged source-port rules with remaining data
-    final_source_ports_cleaned_data = pd.concat(
-        [merged_source_ports, remaining_data_after_source_ports_merge]
-    ).drop_duplicates()
+        
 
-    # Step 4: Merge rules with the same destination and ports
-    merged_dest_ports = (
-        final_source_ports_cleaned_data.groupby(['destination', 'ports'], as_index=False)
-        .agg({'source': lambda x: ','.join(sorted(set(x)))})
-    )
+        # Step 2: Remove the original rules that were merged (by source and destination)
+        merged_source_dest_keys = set(zip(merged_source_dest['source'], merged_source_dest['destination']))
+        remaining_data = rules[
+            ~rules.apply(lambda row: (row['source'], row['destination']) in merged_source_dest_keys, axis=1)
+        ]
 
-    # Remove original rules merged by destination and ports
-    merged_dest_ports_keys = set(zip(merged_dest_ports['destination'], merged_dest_ports['ports']))
-    remaining_data_after_dest_ports_merge = final_source_ports_cleaned_data[
-        ~final_source_ports_cleaned_data.apply(
-            lambda row: (row['destination'], row['ports']) in merged_dest_ports_keys, axis=1
+
+        # Combine merged source-destination rules with remaining data
+        final_cleaned_data = pd.concat([merged_source_dest, remaining_data]).drop_duplicates()
+
+        # Step 3: Merge rules with the same source and ports
+        merged_source_ports = (
+            final_cleaned_data.groupby(['source', 'ports'], as_index=False)
+            .agg({'destination': lambda x: ','.join(sorted(set(x)))})
         )
-    ]
 
-    # Combine merged destination-port rules with remaining data
-    final_dest_ports_cleaned_data = pd.concat(
-        [merged_dest_ports, remaining_data_after_dest_ports_merge]
-    ).drop_duplicates()
+        # Remove original rules merged by source and ports
+        merged_source_ports_keys = set(zip(merged_source_ports['source'], merged_source_ports['ports']))
+        remaining_data_after_source_ports_merge = final_cleaned_data[
+            ~final_cleaned_data.apply(
+                lambda row: (row['source'], row['ports']) in merged_source_ports_keys, axis=1
+            )
+        ]
 
-    # Reformat the final data to source, destination, and ports structure
-    # final_dest_ports_csv_format_data = final_dest_ports_cleaned_data.explode('source')
-    # write_csv('final_dest_ports_csv_format_data.csv', final_dest_ports_csv_format_data)
-    final_output_data = final_dest_ports_cleaned_data[['source', 'destination', 'ports']].drop_duplicates()
+        # Combine merged source-port rules with remaining data
+        final_source_ports_cleaned_data = pd.concat(
+            [merged_source_ports, remaining_data_after_source_ports_merge]
+        ).drop_duplicates()
 
+        # Step 4: Merge rules with the same destination and ports
+        merged_dest_ports = (
+            final_source_ports_cleaned_data.groupby(['destination', 'ports'], as_index=False)
+            .agg({'source': lambda x: ','.join(sorted(set(x)))})
+        )
+
+        # Remove original rules merged by destination and ports
+        merged_dest_ports_keys = set(zip(merged_dest_ports['destination'], merged_dest_ports['ports']))
+        remaining_data_after_dest_ports_merge = final_source_ports_cleaned_data[
+            ~final_source_ports_cleaned_data.apply(
+                lambda row: (row['destination'], row['ports']) in merged_dest_ports_keys, axis=1
+            )
+        ]
+
+        # Combine merged destination-port rules with remaining data
+        final_dest_ports_cleaned_data = pd.concat(
+            [merged_dest_ports, remaining_data_after_dest_ports_merge]
+        ).drop_duplicates()
+
+        # Reformat the final data to source, destination, and ports structure
+        # final_dest_ports_csv_format_data = final_dest_ports_cleaned_data.explode('source')
+        # write_csv('final_dest_ports_csv_format_data.csv', final_dest_ports_csv_format_data)
+        final_output_data = final_dest_ports_cleaned_data[['source', 'destination', 'ports']].drop_duplicates()
+    except Exception as e:
+        print(f"Error during merging and removing duplicates: {e}")
+        final_output_data = pd.DataFrame(columns=['source', 'destination', 'ports'])
     return final_output_data
 
 def read_csv(file_path):
-    rules = []
-    with open(file_path, mode='r', encoding='utf-8-sig') as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            rules.append(row)
+    try:
+        rules = []
+        with open(file_path, mode='r', encoding='utf-8-sig') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                rules.append(row)
+    except FileNotFoundError:
+        print(f"File '{file_path}' not found. Please check the file name and try again.")
+        return []
     return rules
 
 
 def write_csv(rules, file_path):
-    with open(file_path, mode='w', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=["source", "destination", "ports"])
-        writer.writeheader()
-        for rule in rules:
-            writer.writerow(rule)
+    try:
+        with open(file_path, mode='w', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=["source", "destination", "ports"])
+            writer.writeheader()
+            for rule in rules:
+                writer.writerow(rule)
+    except Exception as e:
+        print(f"Error writing to file '{file_path}': {e}")
 
 def write_fortinet_conf(rules, output_file, start_edit=1, action=None):
     with open(output_file, mode='w') as file:
