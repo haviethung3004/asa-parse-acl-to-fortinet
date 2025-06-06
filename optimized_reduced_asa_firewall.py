@@ -297,6 +297,7 @@ def read_csv(file_path: str) -> List[Dict[str, str]]:
         
     return rules
 
+
 def write_csv(rules: List[Dict[str, str]], file_path: str) -> None:
     """
     Write firewall rules to a CSV file.
@@ -314,6 +315,7 @@ def write_csv(rules: List[Dict[str, str]], file_path: str) -> None:
         print(f"Rules successfully written to {file_path}")
     except Exception as e:
         print(f"Error writing to file '{file_path}': {e}")
+    return None
 
 def write_fortinet_conf(rules: Any, output_file: str, start_edit: int = 1, action: Optional[str] = None) -> None:
     """
